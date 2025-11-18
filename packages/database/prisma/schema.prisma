@@ -1,0 +1,418 @@
+// Gappy Platform Database Schema
+// AI-native micro-travel and gap-time platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USER & AUTH MODELS
+// ============================================================================
+
+enum UserRole {
+  TRAVELER
+  PARTNER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model User {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  name          String
+  role          UserRole     @default(TRAVELER)
+  status        UserStatus   @default(ACTIVE)
+  nationality   String?      // ISO 3166-1 alpha-2 country code
+  language      String       @default("en") // ISO 639-1 language code
+  phoneNumber   String?
+  avatarUrl     String?
+
+  // Travel preferences
+  interests     String[]     @default([])
+  travelStyle   String?      // "adventure", "culture", "relaxation", etc.
+
+  // Timestamps
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  lastLoginAt   DateTime?
+
+  // Relations
+  reservations  Reservation[]
+  gapEvents     GapEvent[]
+  partner       Partner?
+
+  @@index([email])
+  @@index([nationality])
+  @@index([createdAt])
+  @@map("users")
+}
+
+// ============================================================================
+// PARTNER & VENUE MODELS
+// ============================================================================
+
+enum PartnerStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+model Partner {
+  id              String         @id @default(cuid())
+  userId          String         @unique
+  companyName     String
+  status          PartnerStatus  @default(PENDING)
+  description     String?
+  contactEmail    String
+  contactPhone    String?
+  logoUrl         String?
+
+  // Business info
+  businessLicense String?
+  taxId           String?
+
+  // Timestamps
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  approvedAt      DateTime?
+
+  // Relations
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  venues          Venue[]
+  activities      Activity[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("partners")
+}
+
+enum VenueType {
+  CAFE
+  RESTAURANT
+  COWORKING
+  MUSEUM
+  GALLERY
+  PARK
+  TEMPLE
+  SHRINE
+  SHOP
+  STUDIO
+  OTHER
+}
+
+model Venue {
+  id            String      @id @default(cuid())
+  partnerId     String
+  name          String
+  nameLocal     String?     // Name in local language
+  type          VenueType
+  description   String?
+
+  // Location
+  address       String
+  city          String
+  area          String      // e.g., "Shibuya", "Harajuku", "Shinjuku"
+  postalCode    String?
+  latitude      Float
+  longitude     Float
+
+  // Contact & Media
+  phoneNumber   String?
+  website       String?
+  imageUrls     String[]    @default([])
+
+  // Metadata
+  capacity      Int?
+  amenities     String[]    @default([])
+  accessInfo    String?     // How to get there
+
+  // Timestamps
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relations
+  partner       Partner     @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  activities    Activity[]
+
+  @@index([area])
+  @@index([type])
+  @@index([city])
+  @@map("venues")
+}
+
+// ============================================================================
+// ACTIVITY MODELS
+// ============================================================================
+
+enum ActivityCategory {
+  CULTURAL
+  CULINARY
+  CREATIVE
+  WELLNESS
+  ADVENTURE
+  SOCIAL
+  EDUCATIONAL
+  ENTERTAINMENT
+}
+
+enum ActivityStatus {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  ARCHIVED
+}
+
+enum DifficultyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  ALL_LEVELS
+}
+
+model Activity {
+  id              String            @id @default(cuid())
+  partnerId       String
+  venueId         String?
+
+  // Basic info
+  title           String
+  titleLocal      String?           // Title in local language
+  description     String
+  category        ActivityCategory
+  status          ActivityStatus    @default(DRAFT)
+
+  // Details
+  duration        Int               // Duration in minutes
+  difficulty      DifficultyLevel   @default(ALL_LEVELS)
+  minParticipants Int               @default(1)
+  maxParticipants Int               @default(10)
+  language        String[]          @default(["en"])
+
+  // Pricing
+  priceAmount     Float             // Base price in JPY
+  currency        String            @default("JPY")
+
+  // Media & Tags
+  imageUrls       String[]          @default([])
+  tags            String[]          @default([])
+  highlights      String[]          @default([])
+  includes        String[]          @default([])
+  requirements    String[]          @default([])
+
+  // Metadata
+  cancellationPolicy String?
+  importantInfo   String?
+
+  // Timestamps
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  publishedAt     DateTime?
+
+  // Relations
+  partner         Partner           @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  venue           Venue?            @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  slots           ActivitySlot[]
+  reservations    Reservation[]
+
+  @@index([category])
+  @@index([status])
+  @@index([partnerId])
+  @@index([venueId])
+  @@map("activities")
+}
+
+enum SlotStatus {
+  AVAILABLE
+  BOOKED
+  CANCELLED
+  COMPLETED
+}
+
+model ActivitySlot {
+  id              String         @id @default(cuid())
+  activityId      String
+
+  // Scheduling
+  startTime       DateTime
+  endTime         DateTime
+
+  // Capacity
+  maxParticipants Int
+  bookedCount     Int            @default(0)
+
+  // Status
+  status          SlotStatus     @default(AVAILABLE)
+
+  // Pricing (can override activity base price)
+  priceAmount     Float?
+
+  // Timestamps
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  // Relations
+  activity        Activity       @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  reservations    Reservation[]
+
+  @@index([activityId])
+  @@index([startTime])
+  @@index([status])
+  @@map("activity_slots")
+}
+
+// ============================================================================
+// RESERVATION MODELS
+// ============================================================================
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  FAILED
+}
+
+model Reservation {
+  id              String             @id @default(cuid())
+  userId          String
+  activityId      String
+  slotId          String?
+
+  // Booking details
+  participants    Int                @default(1)
+  totalAmount     Float
+  currency        String             @default("JPY")
+
+  // Status
+  status          ReservationStatus  @default(PENDING)
+  paymentStatus   PaymentStatus      @default(PENDING)
+
+  // User info snapshot (for historical records)
+  userEmail       String
+  userName        String
+  userPhone       String?
+
+  // Additional info
+  specialRequests String?
+  internalNotes   String?
+
+  // Timestamps
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  confirmedAt     DateTime?
+  cancelledAt     DateTime?
+  completedAt     DateTime?
+
+  // Relations
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity        Activity           @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  slot            ActivitySlot?      @relation(fields: [slotId], references: [id], onDelete: SetNull)
+  gapEvents       GapEvent[]
+
+  @@index([userId])
+  @@index([activityId])
+  @@index([slotId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("reservations")
+}
+
+// ============================================================================
+// ANALYTICS & EVENT LOG MODELS
+// ============================================================================
+
+enum GapEventType {
+  // User events
+  USER_REGISTERED
+  USER_LOGIN
+  USER_LOGOUT
+  USER_PROFILE_UPDATED
+
+  // Browse events
+  ACTIVITY_VIEWED
+  ACTIVITY_SEARCHED
+  VENUE_VIEWED
+
+  // Booking events
+  RESERVATION_CREATED
+  RESERVATION_CONFIRMED
+  RESERVATION_CANCELLED
+  RESERVATION_COMPLETED
+
+  // Payment events
+  PAYMENT_INITIATED
+  PAYMENT_SUCCEEDED
+  PAYMENT_FAILED
+  PAYMENT_REFUNDED
+
+  // Partner events
+  ACTIVITY_CREATED
+  ACTIVITY_UPDATED
+  ACTIVITY_PUBLISHED
+  SLOT_CREATED
+
+  // System events
+  ERROR_OCCURRED
+  API_CALL
+}
+
+model GapEvent {
+  id              String        @id @default(cuid())
+
+  // Event metadata
+  eventType       GapEventType
+  eventName       String?       // Custom event name
+
+  // Context
+  userId          String?
+  sessionId       String?
+  reservationId   String?
+
+  // Location context
+  area            String?       // e.g., "Shibuya"
+  city            String?
+  country         String?
+
+  // Request metadata
+  ipAddress       String?
+  userAgent       String?
+  referer         String?
+
+  // Event data (JSON)
+  eventData       Json?
+  metadata        Json?
+
+  // Timestamps
+  createdAt       DateTime      @default(now())
+  occurredAt      DateTime      @default(now())
+
+  // Relations
+  user            User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  reservation     Reservation?  @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+
+  @@index([eventType])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([area])
+  @@index([createdAt])
+  @@index([occurredAt])
+  @@map("gap_events")
+}
