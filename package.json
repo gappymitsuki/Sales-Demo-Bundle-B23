@@ -24,7 +24,8 @@
     "db:studio": "pnpm --filter @gappy/database db:studio",
     "sample-data:seed": "pnpm --filter @gappy/sample-data seed",
     "demo:shibuya": "pnpm sample-data:seed -- --profile shibuya_demo --days 30 --users 500",
-    "demo:osaka": "pnpm sample-data:seed -- --profile osaka_demo --days 30 --users 300"
+    "demo:osaka": "pnpm sample-data:seed -- --profile osaka_demo --days 30 --users 300",
+    "demo:summary": "pnpm --filter @gappy/sample-data summary"
   },
   "devDependencies": {
     "turbo": "^1.13.0",

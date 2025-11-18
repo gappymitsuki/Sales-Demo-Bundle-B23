@@ -4,9 +4,9 @@
  */
 
 import { faker } from '@faker-js/faker';
-import { prisma } from '@gappy/database';
+import { prisma, TravelerSegment } from '@gappy/database';
 import type { DemoProfile } from '../config/profiles.js';
-import { pickWeighted, pickRandom, randomBoolean } from '../utils/random.js';
+import { pickWeighted, pickRandom, randomBoolean, randomInt } from '../utils/random.js';
 import { Logger } from '../utils/logger.js';
 
 export interface GenerateUsersOptions {
@@ -44,6 +44,91 @@ const TRAVEL_STYLES = [
   'solo',
   'foodie',
 ];
+
+/**
+ * Determine traveler segment based on nationality, age, interests, and travel style
+ * This creates distinct personas for sales demo storytelling
+ */
+function determineTravelerSegment(
+  nationality: string,
+  interests: string[],
+  travelStyle: string
+): TravelerSegment {
+  // Simulate age based on travel style and interests
+  const ageGroup = getAgeGroup(travelStyle, interests);
+
+  // SOLO_YOUNG_BACKPACKER: 18-25, budget-conscious, social
+  if (
+    ageGroup === 'young' &&
+    (travelStyle === 'budget' || travelStyle === 'solo' || travelStyle === 'social')
+  ) {
+    return 'SOLO_YOUNG_BACKPACKER';
+  }
+
+  // COUPLE_CITY_BREAK: 25-45, short trips, culture/food focus
+  if (
+    ageGroup === 'adult' &&
+    (interests.includes('culture') || interests.includes('food') || interests.includes('nightlife'))
+  ) {
+    return 'COUPLE_CITY_BREAK';
+  }
+
+  // FAMILY_FIRST_TIME_JAPAN: any age, broad interests, first-time visitors
+  if (
+    ageGroup === 'family' ||
+    (interests.includes('culture') && interests.includes('food') && interests.length >= 4)
+  ) {
+    return 'FAMILY_FIRST_TIME_JAPAN';
+  }
+
+  // DIGITAL_NOMAD: young/adult, wifi/coworking interests, longer stays
+  if (
+    (ageGroup === 'young' || ageGroup === 'adult') &&
+    (interests.includes('technology') || travelStyle === 'relaxation')
+  ) {
+    return 'DIGITAL_NOMAD';
+  }
+
+  // LUXURY_TRAVELER: affluent countries, luxury style, specific interests
+  if (
+    travelStyle === 'luxury' ||
+    (['US', 'GB', 'AU', 'FR', 'DE', 'SG'].includes(nationality) && interests.includes('wellness'))
+  ) {
+    return 'LUXURY_TRAVELER';
+  }
+
+  // CULTURAL_ENTHUSIAST: culture/history/art focused
+  if (
+    interests.includes('culture') &&
+    (interests.includes('history') || interests.includes('art') || interests.includes('architecture'))
+  ) {
+    return 'CULTURAL_ENTHUSIAST';
+  }
+
+  // FOODIE_EXPLORER: food/culinary focused (default for many Asian travelers)
+  if (
+    interests.includes('food') ||
+    ['CN', 'TW', 'HK', 'TH', 'SG', 'MY'].includes(nationality)
+  ) {
+    return 'FOODIE_EXPLORER';
+  }
+
+  // Default fallback
+  return 'COUPLE_CITY_BREAK';
+}
+
+/**
+ * Simulate age group based on travel style and interests
+ */
+function getAgeGroup(travelStyle: string, interests: string[]): 'young' | 'adult' | 'family' {
+  if (travelStyle === 'budget' || interests.includes('nightlife') || interests.includes('anime')) {
+    return 'young';
+  }
+  if (interests.length >= 5 || interests.includes('architecture')) {
+    return 'family';
+  }
+  return 'adult';
+}
 
 export async function generateUsers(
   options: GenerateUsersOptions
@@ -97,8 +182,22 @@ export async function generateUsers(
       const fakerInstance = getFakerInstance(locale);
 
       const email = fakerInstance.internet.email().toLowerCase();
-      const interests = pickRandom(TRAVEL_INTERESTS);
       const numInterests = faker.number.int({ min: 2, max: 6 });
+      const interests = Array.from(
+        new Set(
+          Array(numInterests)
+            .fill(null)
+            .map(() => pickRandom(TRAVEL_INTERESTS))
+        )
+      );
+      const travelStyle = pickRandom(TRAVEL_STYLES);
+
+      // Determine traveler segment based on profile
+      const segment = determineTravelerSegment(
+        nationality.countryCode,
+        interests,
+        travelStyle
+      );
 
       users.push({
         email,
@@ -109,14 +208,9 @@ export async function generateUsers(
         language: nationality.preferredLanguage,
         phoneNumber: randomBoolean(0.7) ? fakerInstance.phone.number() : null,
         avatarUrl: `https://i.pravatar.cc/150?u=${email}`,
-        interests: Array.from(
-          new Set(
-            Array(numInterests)
-              .fill(null)
-              .map(() => pickRandom(TRAVEL_INTERESTS))
-          )
-        ),
-        travelStyle: pickRandom(TRAVEL_STYLES),
+        segment, // Add traveler segment for demo storytelling
+        interests,
+        travelStyle,
         createdAt: faker.date.past({ years: 1 }),
         lastLoginAt: randomBoolean(0.8) ? faker.date.recent({ days: 30 }) : null,
       });

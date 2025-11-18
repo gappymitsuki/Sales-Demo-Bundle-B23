@@ -26,6 +26,16 @@ enum UserStatus {
   SUSPENDED
 }
 
+enum TravelerSegment {
+  SOLO_YOUNG_BACKPACKER
+  COUPLE_CITY_BREAK
+  FAMILY_FIRST_TIME_JAPAN
+  DIGITAL_NOMAD
+  LUXURY_TRAVELER
+  CULTURAL_ENTHUSIAST
+  FOODIE_EXPLORER
+}
+
 model User {
   id            String       @id @default(cuid())
   email         String       @unique
@@ -38,6 +48,7 @@ model User {
   avatarUrl     String?
 
   // Travel preferences
+  segment       TravelerSegment? // Traveler segment for demo storytelling
   interests     String[]     @default([])
   travelStyle   String?      // "adventure", "culture", "relaxation", etc.
 
@@ -53,6 +64,7 @@ model User {
 
   @@index([email])
   @@index([nationality])
+  @@index([segment])
   @@index([createdAt])
   @@map("users")
 }
@@ -314,6 +326,9 @@ model Reservation {
   specialRequests String?
   internalNotes   String?
 
+  // Demo scenario for sales storytelling
+  demoScenario    String?            @default("baseline") // e.g., "baseline", "campaign_push_gap_time", "poor_ux_control"
+
   // Timestamps
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
@@ -331,6 +346,7 @@ model Reservation {
   @@index([activityId])
   @@index([slotId])
   @@index([status])
+  @@index([demoScenario])
   @@index([createdAt])
   @@map("reservations")
 }
@@ -386,6 +402,12 @@ model GapEvent {
   sessionId       String?
   reservationId   String?
 
+  // Denormalized user context for analytics
+  userSegment     String?       // Denormalized TravelerSegment for fast queries
+
+  // Demo scenario for sales storytelling
+  demoScenario    String?       @default("baseline") // e.g., "baseline", "campaign_push_gap_time", "poor_ux_control"
+
   // Location context
   area            String?       // e.g., "Shibuya"
   city            String?
@@ -411,6 +433,8 @@ model GapEvent {
   @@index([eventType])
   @@index([userId])
   @@index([sessionId])
+  @@index([userSegment])
+  @@index([demoScenario])
   @@index([area])
   @@index([createdAt])
   @@index([occurredAt])

@@ -31,6 +31,7 @@ program
   .option('-p, --profile <name>', 'Demo profile to use (shibuya_demo, osaka_demo)', 'shibuya_demo')
   .option('-u, --users <number>', 'Number of users to generate', '500')
   .option('-d, --days <number>', 'Days of data to generate', '30')
+  .option('-s, --scenario <name>', 'Demo scenario (baseline, campaign_push_gap_time, poor_ux_control)', 'baseline')
   .option('--clean', 'Clean database before seeding', false)
   .option('--silent', 'Suppress output', false)
   .action(async (options) => {
@@ -42,7 +43,16 @@ program
       const profileName = options.profile;
       const userCount = parseInt(options.users, 10);
       const daysOfData = parseInt(options.days, 10);
+      const demoScenario = options.scenario;
       const shouldClean = options.clean;
+
+      // Validate scenario
+      const validScenarios = ['baseline', 'campaign_push_gap_time', 'poor_ux_control'];
+      if (!validScenarios.includes(demoScenario)) {
+        throw new Error(
+          `Invalid scenario: ${demoScenario}. Valid options: ${validScenarios.join(', ')}`
+        );
+      }
 
       // Validate profile
       const profile = getProfile(profileName);
@@ -54,6 +64,7 @@ program
 
       logger.info(`Profile: ${chalk.bold(profile.displayName)}`);
       logger.info(`Location: ${chalk.bold(profile.location.city)}, ${profile.location.country}`);
+      logger.info(`Scenario: ${chalk.bold(demoScenario)}`);
       logger.info(`Users: ${chalk.bold(userCount)}`);
       logger.info(`Days of data: ${chalk.bold(daysOfData)}`);
       logger.info('');
@@ -123,6 +134,7 @@ program
       logger.section('Step 5: Generating Reservations');
       const reservationIds = await generateReservations({
         userIds: userIds.filter((id) => !partnerUserIds.includes(id)), // Only traveler users
+        demoScenario,
         logger,
       });
 
@@ -131,6 +143,7 @@ program
       const eventIds = await generateGapEvents({
         profile,
         userIds,
+        demoScenario,
         logger,
       });
 
@@ -142,6 +155,7 @@ program
       logger.section('Generation Complete!');
       logger.summary([
         { label: 'Profile', value: profile.displayName },
+        { label: 'Scenario', value: demoScenario },
         { label: 'Users', value: userIds.length },
         { label: 'Partners', value: partnerUserIds.length },
         { label: 'Venues', value: venueIds.length },

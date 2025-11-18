@@ -10,6 +10,7 @@ import { Logger } from '../utils/logger.js';
 
 export interface GenerateReservationsOptions {
   userIds: string[];
+  demoScenario: string;
   logger: Logger;
 }
 
@@ -31,10 +32,10 @@ const SPECIAL_REQUESTS = [
 export async function generateReservations(
   options: GenerateReservationsOptions
 ): Promise<string[]> {
-  const { userIds, logger } = options;
+  const { userIds, demoScenario, logger } = options;
   const reservationIds: string[] = [];
 
-  logger.info('Generating reservations for booked slots...');
+  logger.info(`Generating reservations for booked slots (scenario: ${demoScenario})...`);
 
   // Get all slots that are booked or completed
   const bookedSlots = await prisma.activitySlot.findMany({
@@ -118,6 +119,7 @@ export async function generateReservations(
         userName: user.name,
         userPhone: user.phoneNumber,
         specialRequests: pickRandom(SPECIAL_REQUESTS),
+        demoScenario, // Add demo scenario for sales storytelling
         createdAt,
         confirmedAt,
         cancelledAt,
